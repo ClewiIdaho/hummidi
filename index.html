@@ -745,7 +745,6 @@
                     } 
                 });
                 
-                // Try to use WAV format for better compatibility
                 const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
                 state.mediaRecorder = new MediaRecorder(stream, { mimeType });
                 state.audioChunks = [];
@@ -772,7 +771,7 @@
                     stream.getTracks().forEach(track => track.stop());
                 };
 
-                state.mediaRecorder.start(100); // Collect data every 100ms
+                state.mediaRecorder.start(100);
                 state.isRecording = true;
                 state.recordingSeconds = 0;
 
@@ -879,10 +878,6 @@
             $('recordingPreview').classList.remove('active');
             uploadZone.classList.add('has-file');
             uploadZone.querySelector('.upload-text').innerHTML = `✅ ${file.name.substring(0, 25)}${file.name.length > 25 ? '...' : ''}`;
-            
-            const previewUrl = URL.createObjectURL(file);
-            $('previewAudio').src = previewUrl;
-            
             updateGenerateBtn();
         };
 
@@ -905,47 +900,29 @@
             $('progressStatus').textContent = txt;
         };
 
-        // Upload audio to temporary file host
-        const uploadToTmpFiles = async (blob) => {
-            const formData = new FormData();
-            formData.append('file', blob, 'audio.webm');
-            
+        // Upload to temp file host
+        const uploadAudio = async (blob) => {
+            // Try 0x0.st (free file host)
             try {
-                // Using tmpfiles.org - free temporary file hosting
-                const response = await fetch('https://tmpfiles.org/api/v1/upload', {
+                const formData = new FormData();
+                formData.append('file', blob, 'audio.webm');
+                
+                const response = await fetch('https://0x0.st', {
                     method: 'POST',
                     body: formData
                 });
                 
-                const data = await response.json();
-                if (data.status === 'success' && data.data?.url) {
-                    // Convert view URL to direct download URL
-                    const directUrl = data.data.url.replace('tmpfiles.org/', 'tmpfiles.org/dl/');
-                    return directUrl;
+                if (response.ok) {
+                    const url = await response.text();
+                    console.log('Uploaded to 0x0.st:', url.trim());
+                    return url.trim();
                 }
             } catch (e) {
-                console.log('tmpfiles.org failed, trying alternative...');
+                console.log('0x0.st failed:', e);
             }
-            
-            // Fallback to file.io
-            try {
-                const formData2 = new FormData();
-                formData2.append('file', blob, 'audio.webm');
-                
-                const response = await fetch('https://file.io', {
-                    method: 'POST',
-                    body: formData2
-                });
-                
-                const data = await response.json();
-                if (data.success && data.link) {
-                    return data.link;
-                }
-            } catch (e) {
-                console.log('file.io also failed');
-            }
-            
-            // Final fallback - use base64
+
+            // Fallback to base64
+            console.log('Using base64 fallback');
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result);
@@ -971,10 +948,9 @@
             try {
                 updateProg(5, 'Preparing audio...');
                 
-                // Upload audio to get a URL
                 updateProg(15, 'Uploading audio...');
-                const audioUrl = await uploadToTmpFiles(state.audioBlob);
-                console.log('Audio URL:', audioUrl);
+                const audioUrl = await uploadAudio(state.audioBlob);
+                console.log('Audio URL:', audioUrl.substring(0, 100));
 
                 updateProg(25, 'Starting conversion...');
 
@@ -985,7 +961,7 @@
                 });
                 
                 const predData = await response.json();
-                console.log('Prediction started:', predData);
+                console.log('API response:', predData);
 
                 if (!predData.id) {
                     throw new Error(predData.error || 'Failed to start conversion.');
@@ -1003,13 +979,12 @@
                     try {
                         const pollRes = await fetch(`${API}?id=${predData.id}`);
                         const pollData = await pollRes.json();
-                        console.log('Poll status:', pollData.status);
+                        console.log('Poll:', pollData.status);
 
                         if (pollData.status === 'succeeded') {
                             updateProg(100, 'Done!');
                             console.log('Output:', pollData.output);
 
-                            // Handle different output formats
                             const output = pollData.output;
                             if (typeof output === 'string') {
                                 state.midiUrl = output;
@@ -1018,12 +993,16 @@
                             } else if (output?.midi_file) {
                                 state.midiUrl = output.midi_file;
                             } else if (Array.isArray(output)) {
-                                // Find the MIDI file in array
-                                state.midiUrl = output.find(u => u.includes('.mid')) || output[0];
+                                state.midiUrl = output.find(u => u && u.includes('.mid')) || output[0];
+                            } else if (typeof output === 'object') {
+                                // Find any URL in the output object
+                                const urls = Object.values(output).filter(v => typeof v === 'string' && v.startsWith('http'));
+                                state.midiUrl = urls.find(u => u.includes('.mid')) || urls[0];
                             }
 
                             if (!state.midiUrl) {
-                                throw new Error('No MIDI file in response');
+                                console.log('Full output:', JSON.stringify(output));
+                                throw new Error('Could not find MIDI file in response');
                             }
 
                             await sleep(300);
@@ -1041,10 +1020,10 @@
 
                         if (pollData.status === 'failed') {
                             console.error('Failed:', pollData.error);
-                            throw new Error(pollData.error || 'Conversion failed. Try a clearer recording.');
+                            throw new Error(pollData.error || 'Conversion failed.');
                         }
                     } catch (pollError) {
-                        if (pollError.message.includes('Conversion failed')) {
+                        if (pollError.message.includes('failed') || pollError.message.includes('Could not find')) {
                             throw pollError;
                         }
                         console.log('Poll error, retrying...');
