@@ -1,1 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rapperstore Hum to MIDI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #8b5cf6;
+            --accent2: #06b6d4;
+            --glow: rgba(139, 92, 246, 0.4);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        html, body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: transparent;
+            height: 100%;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 12px;
+        }
+        
+        .container {
+            background: rgba(12, 12, 20, 0.95);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-radius: 20px;
+            padding: 20px;
+            width: 100%;
+            max-width: 420px;
+            max-height: calc(100vh - 24px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-shrink: 0;
+        }
+        
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .brand-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        
+        .brand-text {
+            color: #888;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+        
+        .title {
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+        }
+        
+        .color-dots { display: flex; gap: 4px; }
+        
+        .color-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .color-dot:hover { transform: scale(1.15); }
+        .color-dot.active { border-color: rgba(255,255,255,0.5); }
+        .dot-purple { background: #8b5cf6; }
+        .dot-green { background: #4ade80; }
+        .dot-cyan { background: #22d3ee; }
+        .dot-pink { background: #f472b6; }
+        .dot-orange { background: #fb923c; }
+        
+        .scrollable-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            min-height: 0;
+            padding-right: 4px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .scrollable-content::-webkit-scrollbar { width: 4px; }
+        .scrollable-content::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 2px; }
+        .scrollable-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+        
+        .hero-badge {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(6, 182, 212, 0.1));
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .hero-icon { font-size: 22px; }
+        .hero-content { flex: 1; }
+        .hero-title { color: #fff; font-size: 13px; font-weight: 600; }
+        .hero-text { color: #a78bfa; font-size: 10px; margin-top: 2px; }
+        .hero-tag {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            font-size: 9px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 700;
+        }
 
+        .section-title {
+            color: #666;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        /* Record Section */
+        .record-section { margin-bottom: 14px; }
+
+        .record-container {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .record-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            font-size: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 12px;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .record-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px var(--glow);
+        }
+
+        .record-btn.recording {
+            background: #ef4444;
+            animation: recordPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes recordPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+        }
+
+        .record-text {
+            color: #888;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .record-time {
+            color: var(--accent);
+            font-size: 24px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .record-time.active { display: block; }
+
+        .waveform {
+            height: 40px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            margin-top: 12px;
+        }
+
+        .waveform.active { display: flex; }
+
+        .wave-bar {
+            width: 4px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 2px;
+            animation: wave 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes wave {
+            0% { height: 10px; }
+            100% { height: 35px; }
+        }
+
+        /* Recording Preview */
+        .recording-preview {
+            display: none;
+            margin-top: 14px;
+            padding: 12px;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.2);
+            border-radius: 10px;
+        }
+
+        .recording-preview.active { display: block; }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .preview-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .preview-icon { font-size: 16px; }
+        .preview-text { color: #4ade80; font-size: 11px; font-weight: 600; }
+        
+        .preview-actions { display: flex; gap: 6px; }
+
+        .preview-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .preview-btn:hover { background: var(--accent); }
+        .preview-btn.delete { color: #f87171; }
+        .preview-btn.delete:hover { background: #f87171; color: #fff; }
+
+        .preview-player {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .preview-play {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: #4ade80;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .preview-timeline {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .preview-progress {
+            height: 100%;
+            background: #4ade80;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .preview-duration {
+            color: #888;
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Divider */
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 14px 0;
+        }
+
+        .divider-line {
+            flex: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .divider-text {
+            color: #555;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        /* Upload Zone */
+        .upload-section { margin-bottom: 14px; }
+
+        .upload-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--accent);
+            background: rgba(139, 92, 246, 0.05);
+        }
+
+        .upload-zone.has-file {
+            border-color: #4ade80;
+            border-style: solid;
+            background: rgba(74, 222, 128, 0.05);
+        }
+
+        .upload-text {
+            color: #888;
+            font-size: 11px;
+        }
+
+        .upload-text span { color: var(--accent); }
+
+        /* Error Box */
+        .error-box {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 12px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .error-box.active { display: flex; }
+        .error-icon { font-size: 14px; }
+        .error-text { color: #f87171; font-size: 11px; flex: 1; font-weight: 500; }
+        .error-close { 
+            background: none; 
+            border: none; 
+            color: #f87171; 
+            cursor: pointer; 
+            font-size: 14px; 
+            padding: 4px;
+            opacity: 0.7;
+        }
+        .error-close:hover { opacity: 1; }
+
+        /* Progress */
+        .progress-section { 
+            display: none; 
+            margin-bottom: 14px;
+        }
+        .progress-section.active { display: block; }
+        
+        .progress-box {
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .progress-status { color: #fff; font-size: 12px; font-weight: 500; }
+        .progress-info { text-align: right; }
+        .progress-percent { color: var(--accent); font-size: 14px; font-weight: 700; }
+        .progress-time { color: #666; font-size: 9px; margin-top: 2px; }
+        
+        .progress-bar {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s ease-out;
+        }
+
+        /* Results */
+        .results-section { 
+            display: none; 
+            margin-bottom: 14px;
+        }
+        .results-section.active { display: block; }
+
+        .midi-result {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(6, 182, 212, 0.08));
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 14px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .midi-icon { font-size: 48px; margin-bottom: 12px; }
+        .midi-title { color: #fff; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+        .midi-subtitle { color: #888; font-size: 11px; margin-bottom: 16px; }
+
+        .midi-actions { display: flex; gap: 8px; }
+
+        .midi-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .midi-btn:hover { background: rgba(255, 255, 255, 0.15); }
+        .midi-btn.primary { background: var(--accent); }
+        .midi-btn.primary:hover { box-shadow: 0 4px 20px var(--glow); }
+
+        .daw-tips {
+            margin-top: 14px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+        }
+
+        .daw-tips-title { color: #888; font-size: 10px; font-weight: 600; margin-bottom: 8px; }
+
+        .daw-tip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            font-size: 10px;
+            margin-bottom: 6px;
+        }
+
+        .daw-tip:last-child { margin-bottom: 0; }
+        .daw-tip-icon { font-size: 12px; }
+
+        /* Generate Button */
+        .generate-btn {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+            flex-shrink: 0;
+            margin-top: auto;
+        }
+        
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px var(--glow);
+        }
+        
+        .generate-btn:active:not(:disabled) { transform: translateY(0); }
+        .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .generate-btn .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+        
+        .generate-btn.loading .spinner { display: block; }
+        .generate-btn.loading .btn-icon { display: none; }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .footer {
+            color: #444;
+            font-size: 10px;
+            text-align: center;
+            margin-top: 14px;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+        
+        /* Themes */
+        .theme-purple { --accent: #8b5cf6; --accent2: #06b6d4; --glow: rgba(139, 92, 246, 0.4); }
+        .theme-green { --accent: #4ade80; --accent2: #22d3ee; --glow: rgba(74, 222, 128, 0.4); }
+        .theme-cyan { --accent: #22d3ee; --accent2: #818cf8; --glow: rgba(34, 211, 238, 0.4); }
+        .theme-pink { --accent: #f472b6; --accent2: #fb923c; --glow: rgba(244, 114, 182, 0.4); }
+        .theme-orange { --accent: #fb923c; --accent2: #fbbf24; --glow: rgba(251, 146, 60, 0.4); }
+        
+        /* Mobile */
+        @media (max-width: 420px) {
+            body { padding: 8px; }
+            .container { padding: 16px; border-radius: 16px; max-height: calc(100vh - 16px); }
+            .record-btn { width: 70px; height: 70px; font-size: 24px; }
+            .record-time { font-size: 20px; }
+            .generate-btn { padding: 14px; font-size: 14px; }
+        }
+
+        #fileInput, #previewAudio { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container theme-purple" id="app">
+        <div class="header">
+            <div class="brand">
+                <div class="brand-dot"></div>
+                <span class="brand-text">Rapperstore</span>
+            </div>
+            <h1 class="title">Hum to MIDI</h1>
+            <div class="color-dots">
+                <div class="color-dot dot-purple active" data-theme="purple"></div>
+                <div class="color-dot dot-green" data-theme="green"></div>
+                <div class="color-dot dot-cyan" data-theme="cyan"></div>
+                <div class="color-dot dot-pink" data-theme="pink"></div>
+                <div class="color-dot dot-orange" data-theme="orange"></div>
+            </div>
+        </div>
+
+        <div class="scrollable-content">
+            <div class="hero-badge">
+                <span class="hero-icon">🎹</span>
+                <div class="hero-content">
+                    <div class="hero-title">Audio to MIDI Converter</div>
+                    <div class="hero-text">Hum, sing, or play → Get MIDI for your DAW</div>
+                </div>
+                <span class="hero-tag">PRO</span>
+            </div>
+
+            <div class="error-box" id="errorBox">
+                <span class="error-icon">⚠️</span>
+                <span class="error-text" id="errorText"></span>
+                <button class="error-close" id="errorClose">✕</button>
+            </div>
+
+            <!-- Record Section -->
+            <div class="record-section">
+                <div class="section-title">Record Your Idea</div>
+                <div class="record-container">
+                    <button class="record-btn" id="recordBtn">🎤</button>
+                    <div class="record-text" id="recordText">Tap to start recording</div>
+                    <div class="record-time" id="recordTime">0:00</div>
+                    <div class="waveform" id="waveform"></div>
+                </div>
+
+                <div class="recording-preview" id="recordingPreview">
+                    <div class="preview-header">
+                        <div class="preview-info">
+                            <span class="preview-icon">✅</span>
+                            <span class="preview-text">Recording ready</span>
+                        </div>
+                        <div class="preview-actions">
+                            <button class="preview-btn delete" id="deleteRecording">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="preview-player">
+                        <button class="preview-play" id="previewPlay">▶</button>
+                        <div class="preview-timeline">
+                            <div class="preview-progress" id="previewProgress"></div>
+                        </div>
+                        <span class="preview-duration" id="previewDuration">0:00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider">
+                <div class="divider-line"></div>
+                <span class="divider-text">OR UPLOAD FILE</span>
+                <div class="divider-line"></div>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-text">📁 <span>Choose file</span> or drag & drop</div>
+                </div>
+                <input type="file" id="fileInput" accept="audio/*">
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-section" id="progressSection">
+                <div class="progress-box">
+                    <div class="progress-header">
+                        <span class="progress-status" id="progressStatus">Starting...</span>
+                        <div class="progress-info">
+                            <div class="progress-percent" id="progressPercent">0%</div>
+                            <div class="progress-time" id="progressTime">0:00</div>
+                        </div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="results-section" id="resultsSection">
+                <div class="midi-result">
+                    <div class="midi-icon">🎼</div>
+                    <div class="midi-title">MIDI File Ready!</div>
+                    <div class="midi-subtitle">Your melody has been converted</div>
+                    <div class="midi-actions">
+                        <button class="midi-btn" id="newConvert">🔄 New</button>
+                        <button class="midi-btn primary" id="downloadMidi">⬇️ Download MIDI</button>
+                    </div>
+                </div>
+
+                <div class="daw-tips">
+                    <div class="daw-tips-title">💡 Quick Import Tips</div>
+                    <div class="daw-tip">
+                        <span class="daw-tip-icon">🎹</span>
+                        <span>FL Studio: Drag MIDI directly into playlist</span>
+                    </div>
+                    <div class="daw-tip">
+                        <span class="daw-tip-icon">🎚️</span>
+                        <span>Pro Tools: File → Import → MIDI</span>
+                    </div>
+                    <div class="daw-tip">
+                        <span class="daw-tip-icon">🍎</span>
+                        <span>Logic: Drag to tracks or File → Import</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button class="generate-btn" id="generateBtn" disabled>
+            <span class="spinner"></span>
+            <span class="btn-icon">🎹</span>
+            <span class="btn-text">Convert to MIDI</span>
+        </button>
+
+        <div class="footer">© Rapperstore</div>
+    </div>
+
+    <audio id="previewAudio"></audio>
+
+    <script>
+        const API = 'https://clewiidaho--cf20fdd2dae011f0a25d42dde27851f2.web.val.run';
+        
+        const state = { 
+            audioBlob: null,
+            midiUrl: null,
+            isRecording: false,
+            mediaRecorder: null,
+            audioChunks: [],
+            recordingTimer: null,
+            recordingSeconds: 0,
+            processing: false,
+            timer: null,
+            start: null
+        };
+        
+        const $ = id => document.getElementById(id);
+        const $$ = s => document.querySelectorAll(s);
+        const fmtTime = s => {
+            if (!s || isNaN(s)) return '0:00';
+            return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+        };
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        const showErr = m => { $('errorText').textContent = m; $('errorBox').classList.add('active'); };
+        const hideErr = () => $('errorBox').classList.remove('active');
+
+        const updateGenerateBtn = () => {
+            $('generateBtn').disabled = !state.audioBlob || state.processing;
+        };
+
+        // Waveform
+        const createWaveform = () => {
+            const wf = $('waveform');
+            wf.innerHTML = '';
+            for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'wave-bar';
+                bar.style.animationDelay = (Math.random() * 0.5) + 's';
+                wf.appendChild(bar);
+            }
+        };
+
+        // Recording
+        const startRecording = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                state.mediaRecorder = new MediaRecorder(stream);
+                state.audioChunks = [];
+
+                state.mediaRecorder.ondataavailable = (e) => {
+                    state.audioChunks.push(e.data);
+                };
+
+                state.mediaRecorder.onstop = () => {
+                    const blob = new Blob(state.audioChunks, { type: 'audio/webm' });
+                    state.audioBlob = blob;
+                    
+                    const previewUrl = URL.createObjectURL(blob);
+                    $('previewAudio').src = previewUrl;
+                    
+                    $('recordingPreview').classList.add('active');
+                    $('previewDuration').textContent = fmtTime(state.recordingSeconds);
+                    $('uploadZone').classList.remove('has-file');
+                    updateGenerateBtn();
+                    
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                state.mediaRecorder.start();
+                state.isRecording = true;
+                state.recordingSeconds = 0;
+
+                $('recordBtn').classList.add('recording');
+                $('recordBtn').textContent = '⏹️';
+                $('recordText').textContent = 'Recording... Tap to stop';
+                $('recordTime').classList.add('active');
+                $('waveform').classList.add('active');
+                createWaveform();
+
+                state.recordingTimer = setInterval(() => {
+                    state.recordingSeconds++;
+                    $('recordTime').textContent = fmtTime(state.recordingSeconds);
+                    if (state.recordingSeconds >= 30) stopRecording();
+                }, 1000);
+
+            } catch (e) {
+                showErr('Please allow microphone access to record.');
+            }
+        };
+
+        const stopRecording = () => {
+            if (state.mediaRecorder && state.isRecording) {
+                state.mediaRecorder.stop();
+                state.isRecording = false;
+                clearInterval(state.recordingTimer);
+
+                $('recordBtn').classList.remove('recording');
+                $('recordBtn').textContent = '🎤';
+                $('recordText').textContent = 'Tap to record again';
+                $('recordTime').classList.remove('active');
+                $('waveform').classList.remove('active');
+            }
+        };
+
+        const toggleRecording = () => {
+            state.isRecording ? stopRecording() : startRecording();
+        };
+
+        const deleteRecording = () => {
+            state.audioBlob = null;
+            $('recordingPreview').classList.remove('active');
+            $('recordText').textContent = 'Tap to start recording';
+            $('previewAudio').src = '';
+            updateGenerateBtn();
+        };
+
+        // Preview playback
+        const previewAudio = $('previewAudio');
+        let previewPlaying = false;
+
+        const togglePreview = () => {
+            if (previewPlaying) {
+                previewAudio.pause();
+                $('previewPlay').textContent = '▶';
+            } else {
+                previewAudio.play();
+                $('previewPlay').textContent = '⏸';
+            }
+            previewPlaying = !previewPlaying;
+        };
+
+        previewAudio.addEventListener('timeupdate', () => {
+            const progress = (previewAudio.currentTime / previewAudio.duration) * 100;
+            $('previewProgress').style.width = progress + '%';
+        });
+
+        previewAudio.addEventListener('ended', () => {
+            previewPlaying = false;
+            $('previewPlay').textContent = '▶';
+            $('previewProgress').style.width = '0%';
+        });
+
+        // File upload
+        const uploadZone = $('uploadZone');
+        const fileInput = $('fileInput');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('audio/')) {
+                handleFile(file);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+
+        const handleFile = (file) => {
+            state.audioBlob = file;
+            $('recordingPreview').classList.remove('active');
+            uploadZone.classList.add('has-file');
+            uploadZone.querySelector('.upload-text').innerHTML = `✅ ${file.name}`;
+            
+            const previewUrl = URL.createObjectURL(file);
+            $('previewAudio').src = previewUrl;
+            
+            updateGenerateBtn();
+        };
+
+        // Progress
+        const startTimer = () => {
+            state.start = Date.now();
+            state.timer = setInterval(() => {
+                $('progressTime').textContent = fmtTime((Date.now() - state.start) / 1000);
+            }, 1000);
+        };
+        
+        const stopTimer = () => { 
+            if (state.timer) clearInterval(state.timer); 
+            state.timer = null; 
+        };
+
+        const updateProg = (pct, txt) => {
+            $('progressFill').style.width = pct + '%';
+            $('progressPercent').textContent = Math.round(pct) + '%';
+            $('progressStatus').textContent = txt;
+        };
+
+        // Convert blob to base64
+        const blobToBase64 = (blob) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        };
+
+        // Generate MIDI
+        const generate = async () => {
+            if (state.processing || !state.audioBlob) return;
+
+            state.processing = true;
+            hideErr();
+            startTimer();
+
+            $('generateBtn').classList.add('loading');
+            $('generateBtn').disabled = true;
+            $('generateBtn').querySelector('.btn-text').textContent = 'Converting...';
+            $('progressSection').classList.add('active');
+            $('resultsSection').classList.remove('active');
+
+            try {
+                updateProg(5, 'Preparing audio...');
+                const audioUrl = await blobToBase64(state.audioBlob);
+
+                updateProg(15, 'Starting conversion...');
+
+                const response = await fetch(API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ audioUrl })
+                });
+                const predData = await response.json();
+
+                if (!predData.id) throw new Error(predData.error || 'Failed to start. Please try again.');
+
+                updateProg(25, 'Analyzing audio...');
+
+                const msgs = ['Analyzing audio...', 'Detecting pitches...', 'Extracting notes...', 'Building MIDI...', 'Finalizing...'];
+
+                for (let i = 1; i <= 60; i++) {
+                    const pct = Math.min(25 + (i / 60) * 70, 95);
+                    updateProg(pct, msgs[Math.min(Math.floor(i / 12), msgs.length - 1)]);
+                    await sleep(2000);
+
+                    try {
+                        const pollRes = await fetch(`${API}?id=${predData.id}`);
+                        const pollData = await pollRes.json();
+
+                        if (pollData.status === 'succeeded' && pollData.output) {
+                            updateProg(100, 'Done!');
+
+                            const output = pollData.output;
+                            state.midiUrl = output.midi || output.midi_file || output;
+
+                            await sleep(300);
+
+                            $('resultsSection').classList.add('active');
+                            $('progressSection').classList.remove('active');
+
+                            state.processing = false;
+                            stopTimer();
+                            $('generateBtn').classList.remove('loading');
+                            $('generateBtn').disabled = false;
+                            $('generateBtn').querySelector('.btn-text').textContent = 'Convert Another';
+                            return;
+                        }
+
+                        if (pollData.status === 'failed') {
+                            throw new Error('Conversion failed. Try a clearer recording.');
+                        }
+                    } catch (pollError) {
+                        console.log('Poll error, retrying...');
+                    }
+                }
+
+                throw new Error('Taking too long. Please try again.');
+
+            } catch (e) {
+                showErr(e.message);
+                state.processing = false;
+                stopTimer();
+                $('generateBtn').classList.remove('loading');
+                $('generateBtn').disabled = false;
+                $('generateBtn').querySelector('.btn-text').textContent = 'Try Again';
+                $('progressSection').classList.remove('active');
+                updateGenerateBtn();
+            }
+        };
+
+        // Download MIDI
+        const downloadMidi = async () => {
+            if (!state.midiUrl) return;
+            try {
+                const response = await fetch(state.midiUrl);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = `rapperstore-melody-${Date.now()}.mid`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+            } catch (e) {
+                window.open(state.midiUrl, '_blank');
+            }
+        };
+
+        const resetForNew = () => {
+            state.audioBlob = null;
+            state.midiUrl = null;
+            $('recordingPreview').classList.remove('active');
+            $('resultsSection').classList.remove('active');
+            $('uploadZone').classList.remove('has-file');
+            $('uploadZone').querySelector('.upload-text').innerHTML = '📁 <span>Choose file</span> or drag & drop';
+            $('recordText').textContent = 'Tap to start recording';
+            $('generateBtn').querySelector('.btn-text').textContent = 'Convert to MIDI';
+            $('fileInput').value = '';
+            updateGenerateBtn();
+        };
+
+        // Event Listeners
+        $$('.color-dot').forEach(d => d.onclick = () => {
+            $$('.color-dot').forEach(x => x.classList.remove('active'));
+            d.classList.add('active');
+            $('app').className = 'container theme-' + d.dataset.theme;
+        });
+
+        $('errorClose').onclick = hideErr;
+        $('recordBtn').onclick = toggleRecording;
+        $('deleteRecording').onclick = deleteRecording;
+        $('previewPlay').onclick = togglePreview;
+        $('generateBtn').onclick = generate;
+        $('downloadMidi').onclick = downloadMidi;
+        $('newConvert').onclick = resetForNew;
+
+        updateGenerateBtn();
+    </script>
+</body>
+</html>
