@@ -368,17 +368,6 @@
 
         .upload-text span { color: var(--accent); }
 
-        .file-info {
-            margin-top: 8px;
-            padding: 8px;
-            background: rgba(255,255,255,0.05);
-            border-radius: 6px;
-            display: none;
-        }
-
-        .file-info.active { display: block; }
-        .file-info-text { color: #4ade80; font-size: 10px; }
-
         .error-box {
             background: rgba(248, 113, 113, 0.1);
             border: 1px solid rgba(248, 113, 113, 0.3);
@@ -643,7 +632,7 @@
 
             <div class="upload-section">
                 <div class="upload-zone" id="uploadZone">
-                    <div class="upload-text" id="uploadText">📁 <span>Choose file</span> or drag & drop<br><small style="color:#555">MP3, WAV, M4A, OGG supported</small></div>
+                    <div class="upload-text" id="uploadText">📁 <span>Choose file</span> or drag & drop<br><small style="color:#555">MP3, WAV, M4A supported</small></div>
                 </div>
                 <input type="file" id="fileInput" accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.flac">
             </div>
@@ -708,11 +697,10 @@
     <audio id="previewAudio"></audio>
 
     <script>
-        // ========== CONFIGURATION ==========
-        // Replace this with your Val.town endpoint URL
-        const API_URL = 'https://YOUR_USERNAME-YOUR_VAL_NAME.web.val.run';
+        // YOUR VAL.TOWN API ENDPOINT
+        const API_URL = 'https://clewiidaho--cf20fdd2dae011f0a25d42dde27851f2.web.val.run';
         
-        // ========== STATE ==========
+        // State
         const state = { 
             audioBlob: null,
             audioBase64: null,
@@ -727,123 +715,93 @@
             startTime: null
         };
         
-        // ========== HELPERS ==========
+        // Helpers
         const $ = id => document.getElementById(id);
         const $$ = s => document.querySelectorAll(s);
         
         const formatTime = seconds => {
             if (!seconds || isNaN(seconds)) return '0:00';
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
+            return Math.floor(seconds / 60) + ':' + String(Math.floor(seconds % 60)).padStart(2, '0');
         };
         
-        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-        const showError = message => {
-            $('errorText').textContent = message;
+        const showError = msg => {
+            $('errorText').textContent = msg;
             $('errorBox').classList.add('active');
         };
         
-        const hideError = () => {
-            $('errorBox').classList.remove('active');
-        };
+        const hideError = () => $('errorBox').classList.remove('active');
 
         const updateGenerateBtn = () => {
-            const hasAudio = state.audioBlob !== null || state.audioBase64 !== null;
-            $('generateBtn').disabled = !hasAudio || state.processing;
+            $('generateBtn').disabled = !state.audioBase64 || state.processing;
         };
 
-        // Convert blob to base64
-        const blobToBase64 = (blob) => {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            });
-        };
+        const blobToBase64 = blob => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
 
-        // Create waveform animation
         const createWaveform = () => {
-            const waveform = $('waveform');
-            waveform.innerHTML = '';
+            const wf = $('waveform');
+            wf.innerHTML = '';
             for (let i = 0; i < 20; i++) {
                 const bar = document.createElement('div');
                 bar.className = 'wave-bar';
-                bar.style.animationDelay = `${Math.random() * 0.5}s`;
-                waveform.appendChild(bar);
+                bar.style.animationDelay = (Math.random() * 0.5) + 's';
+                wf.appendChild(bar);
             }
         };
 
-        // ========== RECORDING ==========
+        // Recording
         const startRecording = async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 44100,
-                        channelCount: 1
-                    } 
+                    audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 } 
                 });
                 
-                // Choose best available format
                 let mimeType = 'audio/webm';
                 if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
                     mimeType = 'audio/webm;codecs=opus';
                 } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
                     mimeType = 'audio/mp4';
-                } else if (MediaRecorder.isTypeSupported('audio/ogg')) {
-                    mimeType = 'audio/ogg';
                 }
-                
-                console.log('Recording with mime type:', mimeType);
                 
                 state.mediaRecorder = new MediaRecorder(stream, { mimeType });
                 state.audioChunks = [];
 
-                state.mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        state.audioChunks.push(event.data);
-                    }
+                state.mediaRecorder.ondataavailable = e => {
+                    if (e.data.size > 0) state.audioChunks.push(e.data);
                 };
 
                 state.mediaRecorder.onstop = async () => {
                     const blob = new Blob(state.audioChunks, { type: mimeType });
                     state.audioBlob = blob;
                     
-                    // Convert to base64 for API
                     try {
                         state.audioBase64 = await blobToBase64(blob);
-                        console.log('Audio converted to base64, length:', state.audioBase64.length);
+                        console.log('Recording converted, length:', state.audioBase64.length);
                     } catch (e) {
-                        console.error('Base64 conversion failed:', e);
+                        console.error('Base64 error:', e);
                     }
                     
-                    // Set up preview
-                    const previewUrl = URL.createObjectURL(blob);
-                    $('previewAudio').src = previewUrl;
-                    
+                    $('previewAudio').src = URL.createObjectURL(blob);
                     $('recordingPreview').classList.add('active');
                     $('previewLabel').textContent = `Recording ready (${formatTime(state.recordingSeconds)})`;
                     $('previewDuration').textContent = formatTime(state.recordingSeconds);
-                    
-                    // Clear file upload if exists
                     $('uploadZone').classList.remove('has-file');
-                    $('uploadText').innerHTML = '📁 <span>Choose file</span> or drag & drop<br><small style="color:#555">MP3, WAV, M4A, OGG supported</small>';
+                    $('uploadText').innerHTML = '📁 <span>Choose file</span> or drag & drop<br><small style="color:#555">MP3, WAV, M4A supported</small>';
                     
                     updateGenerateBtn();
-                    
-                    // Stop all tracks
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(t => t.stop());
                 };
 
                 state.mediaRecorder.start(100);
                 state.isRecording = true;
                 state.recordingSeconds = 0;
 
-                // Update UI
                 $('recordBtn').classList.add('recording');
                 $('recordBtn').textContent = '⏹️';
                 $('recordText').textContent = 'Recording... Tap to stop';
@@ -851,26 +809,15 @@
                 $('waveform').classList.add('active');
                 createWaveform();
 
-                // Start timer
                 state.recordingTimer = setInterval(() => {
                     state.recordingSeconds++;
                     $('recordTime').textContent = formatTime(state.recordingSeconds);
-                    
-                    // Max 60 seconds
-                    if (state.recordingSeconds >= 60) {
-                        stopRecording();
-                    }
+                    if (state.recordingSeconds >= 60) stopRecording();
                 }, 1000);
 
-            } catch (error) {
-                console.error('Recording error:', error);
-                if (error.name === 'NotAllowedError') {
-                    showError('Microphone access denied. Please allow microphone access and try again.');
-                } else if (error.name === 'NotFoundError') {
-                    showError('No microphone found. Please connect a microphone and try again.');
-                } else {
-                    showError('Could not start recording: ' + error.message);
-                }
+            } catch (e) {
+                console.error('Recording error:', e);
+                showError('Microphone access denied. Please allow microphone access.');
             }
         };
 
@@ -888,13 +835,7 @@
             }
         };
 
-        const toggleRecording = () => {
-            if (state.isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
-            }
-        };
+        const toggleRecording = () => state.isRecording ? stopRecording() : startRecording();
 
         const deleteRecording = () => {
             state.audioBlob = null;
@@ -902,11 +843,10 @@
             $('recordingPreview').classList.remove('active');
             $('recordText').textContent = 'Tap to start recording';
             $('previewAudio').src = '';
-            $('previewAudio').pause();
             updateGenerateBtn();
         };
 
-        // ========== PREVIEW PLAYBACK ==========
+        // Preview playback
         const previewAudio = $('previewAudio');
         let previewPlaying = false;
 
@@ -923,8 +863,7 @@
 
         previewAudio.addEventListener('timeupdate', () => {
             if (previewAudio.duration) {
-                const progress = (previewAudio.currentTime / previewAudio.duration) * 100;
-                $('previewProgress').style.width = `${progress}%`;
+                $('previewProgress').style.width = (previewAudio.currentTime / previewAudio.duration * 100) + '%';
             }
         });
 
@@ -938,110 +877,86 @@
             $('previewDuration').textContent = formatTime(previewAudio.duration);
         });
 
-        // ========== FILE UPLOAD ==========
+        // File upload
         const uploadZone = $('uploadZone');
         const fileInput = $('fileInput');
 
-        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.onclick = () => fileInput.click();
 
-        uploadZone.addEventListener('dragover', (e) => {
+        uploadZone.ondragover = e => {
             e.preventDefault();
             uploadZone.style.borderColor = 'var(--accent)';
-            uploadZone.style.background = 'rgba(139, 92, 246, 0.1)';
-        });
+        };
 
-        uploadZone.addEventListener('dragleave', () => {
-            uploadZone.style.borderColor = '';
-            uploadZone.style.background = '';
-        });
+        uploadZone.ondragleave = () => uploadZone.style.borderColor = '';
 
-        uploadZone.addEventListener('drop', (e) => {
+        uploadZone.ondrop = e => {
             e.preventDefault();
             uploadZone.style.borderColor = '';
-            uploadZone.style.background = '';
             const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('audio/')) {
-                handleFile(file);
-            } else {
-                showError('Please drop an audio file (MP3, WAV, etc.)');
-            }
-        });
+            if (file?.type.startsWith('audio/')) handleFile(file);
+            else showError('Please drop an audio file');
+        };
 
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) handleFile(file);
-        });
+        fileInput.onchange = e => {
+            if (e.target.files[0]) handleFile(e.target.files[0]);
+        };
 
-        const handleFile = async (file) => {
-            // Validate file size (max 25MB)
+        const handleFile = async file => {
             if (file.size > 25 * 1024 * 1024) {
-                showError('File too large. Maximum size is 25MB.');
+                showError('File too large (max 25MB)');
                 return;
             }
             
             state.audioBlob = file;
             
-            // Convert to base64
             try {
                 state.audioBase64 = await blobToBase64(file);
-                console.log('File converted to base64, length:', state.audioBase64.length);
+                console.log('File converted, length:', state.audioBase64.length);
             } catch (e) {
-                console.error('Base64 conversion failed:', e);
-                showError('Failed to process file.');
+                showError('Failed to process file');
                 return;
             }
             
-            // Update preview
-            const previewUrl = URL.createObjectURL(file);
-            $('previewAudio').src = previewUrl;
-            
-            // Show recording preview with file info
+            $('previewAudio').src = URL.createObjectURL(file);
             $('recordingPreview').classList.add('active');
-            const fileName = file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name;
-            $('previewLabel').textContent = `📁 ${fileName}`;
             
-            // Update upload zone
+            const name = file.name.length > 20 ? file.name.substring(0, 20) + '...' : file.name;
+            $('previewLabel').textContent = '📁 ' + name;
+            
             uploadZone.classList.add('has-file');
-            $('uploadText').innerHTML = `✅ ${fileName}`;
+            $('uploadText').innerHTML = '✅ ' + name;
             
             updateGenerateBtn();
         };
 
-        // ========== PROGRESS & TIMER ==========
+        // Progress
         const startTimer = () => {
             state.startTime = Date.now();
             state.timer = setInterval(() => {
-                const elapsed = (Date.now() - state.startTime) / 1000;
-                $('progressTime').textContent = formatTime(elapsed);
+                $('progressTime').textContent = formatTime((Date.now() - state.startTime) / 1000);
             }, 1000);
         };
         
-        const stopTimer = () => { 
-            if (state.timer) {
-                clearInterval(state.timer);
-                state.timer = null;
-            }
+        const stopTimer = () => {
+            if (state.timer) clearInterval(state.timer);
+            state.timer = null;
         };
 
-        const updateProgress = (percent, status) => {
-            $('progressFill').style.width = `${percent}%`;
-            $('progressPercent').textContent = `${Math.round(percent)}%`;
-            $('progressStatus').textContent = status;
+        const updateProgress = (pct, txt) => {
+            $('progressFill').style.width = pct + '%';
+            $('progressPercent').textContent = Math.round(pct) + '%';
+            $('progressStatus').textContent = txt;
         };
 
-        // ========== MIDI CONVERSION ==========
+        // Convert
         const generate = async () => {
-            if (state.processing) return;
-            if (!state.audioBase64 && !state.audioBlob) {
-                showError('Please record or upload audio first.');
-                return;
-            }
+            if (state.processing || !state.audioBase64) return;
 
             state.processing = true;
             hideError();
             startTimer();
 
-            // Update UI
             $('generateBtn').classList.add('loading');
             $('generateBtn').disabled = true;
             $('generateBtn').querySelector('.btn-text').textContent = 'Converting...';
@@ -1049,12 +964,8 @@
             $('resultsSection').classList.remove('active');
 
             try {
-                updateProgress(5, 'Preparing audio...');
-                await sleep(300);
-
-                updateProgress(15, 'Uploading to server...');
+                updateProgress(10, 'Uploading audio...');
                 
-                // Send to API
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1067,51 +978,36 @@
                 const data = await response.json();
                 console.log('API response:', data);
 
-                if (!response.ok) {
-                    throw new Error(data.error || `Server error: ${response.status}`);
+                if (!response.ok || !data.id) {
+                    throw new Error(data.error || 'Failed to start conversion');
                 }
 
-                if (!data.id) {
-                    throw new Error(data.error || 'Failed to start conversion. Please try again.');
-                }
+                updateProgress(25, 'Processing audio...');
+                console.log('Prediction ID:', data.id, 'Model:', data.model);
 
-                updateProgress(25, 'Processing started...');
-                console.log('Prediction ID:', data.id);
-
-                // Poll for results
-                const statusMessages = [
-                    'Analyzing audio waveform...',
-                    'Detecting pitches...',
-                    'Identifying note patterns...',
-                    'Extracting melody...',
-                    'Building MIDI data...',
-                    'Finalizing output...'
-                ];
-
+                const msgs = ['Analyzing waveform...', 'Detecting pitches...', 'Extracting notes...', 'Building MIDI...', 'Finalizing...'];
                 let attempts = 0;
-                const maxAttempts = 90; // 3 minutes max
 
-                while (attempts < maxAttempts) {
+                while (attempts < 90) {
                     await sleep(2000);
                     attempts++;
                     
-                    const progress = Math.min(25 + (attempts / maxAttempts) * 70, 95);
-                    const msgIndex = Math.min(Math.floor(attempts / 15), statusMessages.length - 1);
-                    updateProgress(progress, statusMessages[msgIndex]);
+                    const pct = Math.min(25 + (attempts / 90) * 70, 95);
+                    updateProgress(pct, msgs[Math.min(Math.floor(attempts / 18), msgs.length - 1)]);
 
                     try {
-                        const pollResponse = await fetch(`${API_URL}?id=${data.id}`);
-                        const pollData = await pollResponse.json();
+                        const pollRes = await fetch(`${API_URL}?id=${data.id}`);
+                        const poll = await pollRes.json();
                         
-                        console.log('Poll status:', pollData.status);
+                        console.log('Status:', poll.status);
 
-                        if (pollData.status === 'succeeded') {
+                        if (poll.status === 'succeeded') {
                             updateProgress(100, 'Complete!');
                             
-                            // Extract MIDI URL from output
-                            const output = pollData.output;
+                            const output = poll.output;
                             console.log('Output:', output);
                             
+                            // Extract MIDI URL
                             if (typeof output === 'string') {
                                 state.midiUrl = output;
                             } else if (output?.midi) {
@@ -1119,56 +1015,36 @@
                             } else if (output?.midi_file) {
                                 state.midiUrl = output.midi_file;
                             } else if (Array.isArray(output)) {
-                                state.midiUrl = output.find(url => url?.includes('.mid')) || output[0];
+                                state.midiUrl = output.find(u => u?.includes('.mid')) || output[0];
                             } else if (typeof output === 'object') {
-                                const urls = Object.values(output).filter(v => 
-                                    typeof v === 'string' && v.startsWith('http')
-                                );
+                                const urls = Object.values(output).filter(v => typeof v === 'string' && v.startsWith('http'));
                                 state.midiUrl = urls.find(u => u.includes('.mid')) || urls[0];
                             }
 
                             if (!state.midiUrl) {
-                                console.error('Could not find MIDI URL in output:', output);
-                                throw new Error('Conversion completed but no MIDI file was generated.');
+                                throw new Error('No MIDI file in response');
                             }
 
-                            console.log('MIDI URL:', state.midiUrl);
-
-                            // Show results
-                            await sleep(500);
+                            await sleep(300);
                             $('resultsSection').classList.add('active');
                             $('progressSection').classList.remove('active');
-                            $('midiSubtitle').textContent = 'Your melody has been converted successfully!';
-
                             finishProcessing();
                             return;
                         }
 
-                        if (pollData.status === 'failed') {
-                            console.error('Conversion failed:', pollData.error);
-                            throw new Error(pollData.error || 'Conversion failed. Please try again.');
+                        if (poll.status === 'failed') {
+                            throw new Error(poll.error || 'Conversion failed');
                         }
-
-                        if (pollData.status === 'canceled') {
-                            throw new Error('Conversion was canceled.');
-                        }
-
-                    } catch (pollError) {
-                        // Only throw if it's a definite failure
-                        if (pollError.message.includes('failed') || 
-                            pollError.message.includes('canceled') ||
-                            pollError.message.includes('no MIDI file')) {
-                            throw pollError;
-                        }
-                        console.log('Poll error (will retry):', pollError.message);
+                    } catch (e) {
+                        if (e.message.includes('failed') || e.message.includes('No MIDI')) throw e;
                     }
                 }
 
-                throw new Error('Conversion timed out. Please try with a shorter audio clip.');
+                throw new Error('Conversion timed out. Try a shorter clip.');
 
-            } catch (error) {
-                console.error('Conversion error:', error);
-                showError(error.message || 'An error occurred. Please try again.');
+            } catch (e) {
+                console.error('Error:', e);
+                showError(e.message);
                 $('progressSection').classList.remove('active');
                 finishProcessing();
             }
@@ -1178,39 +1054,31 @@
             state.processing = false;
             stopTimer();
             $('generateBtn').classList.remove('loading');
-            $('generateBtn').disabled = false;
             $('generateBtn').querySelector('.btn-text').textContent = 'Convert to MIDI';
             updateGenerateBtn();
         };
 
-        // ========== DOWNLOAD ==========
+        // Download
         const downloadMidi = async () => {
-            if (!state.midiUrl) {
-                showError('No MIDI file available.');
-                return;
-            }
+            if (!state.midiUrl) return;
             
             try {
-                const response = await fetch(state.midiUrl);
-                const blob = await response.blob();
-                const blobUrl = URL.createObjectURL(blob);
+                const res = await fetch(state.midiUrl);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
                 
-                const link = document.createElement('a');
-                link.href = blobUrl;
-                link.download = `rapperstore-melody-${Date.now()}.mid`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `rapperstore-${Date.now()}.mid`;
+                a.click();
                 
-                URL.revokeObjectURL(blobUrl);
-            } catch (error) {
-                console.error('Download error:', error);
-                // Fallback: open in new tab
+                URL.revokeObjectURL(url);
+            } catch (e) {
                 window.open(state.midiUrl, '_blank');
             }
         };
 
-        // ========== RESET ==========
+        // Reset
         const resetForNew = () => {
             state.audioBlob = null;
             state.audioBase64 = null;
@@ -1221,41 +1089,36 @@
             $('progressSection').classList.remove('active');
             
             uploadZone.classList.remove('has-file');
-            $('uploadText').innerHTML = '📁 <span>Choose file</span> or drag & drop<br><small style="color:#555">MP3, WAV, M4A, OGG supported</small>';
+            $('uploadText').innerHTML = '📁 <span>Choose file</span> or drag & drop<br><small style="color:#555">MP3, WAV, M4A supported</small>';
             
             $('recordText').textContent = 'Tap to start recording';
-            $('generateBtn').querySelector('.btn-text').textContent = 'Convert to MIDI';
-            
             $('fileInput').value = '';
             $('previewAudio').src = '';
-            $('previewAudio').pause();
             
             hideError();
             updateGenerateBtn();
         };
 
-        // ========== THEME SWITCHER ==========
-        $$('.color-dot').forEach(dot => {
-            dot.addEventListener('click', () => {
-                $$('.color-dot').forEach(d => d.classList.remove('active'));
-                dot.classList.add('active');
-                $('app').className = `container theme-${dot.dataset.theme}`;
-            });
+        // Theme
+        $$('.color-dot').forEach(d => {
+            d.onclick = () => {
+                $$('.color-dot').forEach(x => x.classList.remove('active'));
+                d.classList.add('active');
+                $('app').className = 'container theme-' + d.dataset.theme;
+            };
         });
 
-        // ========== EVENT LISTENERS ==========
-        $('errorClose').addEventListener('click', hideError);
-        $('recordBtn').addEventListener('click', toggleRecording);
-        $('deleteRecording').addEventListener('click', deleteRecording);
-        $('previewPlay').addEventListener('click', togglePreview);
-        $('generateBtn').addEventListener('click', generate);
-        $('downloadMidi').addEventListener('click', downloadMidi);
-        $('newConvert').addEventListener('click', resetForNew);
+        // Events
+        $('errorClose').onclick = hideError;
+        $('recordBtn').onclick = toggleRecording;
+        $('deleteRecording').onclick = deleteRecording;
+        $('previewPlay').onclick = togglePreview;
+        $('generateBtn').onclick = generate;
+        $('downloadMidi').onclick = downloadMidi;
+        $('newConvert').onclick = resetForNew;
 
-        // Initialize
         updateGenerateBtn();
-        console.log('Hum to MIDI initialized');
-        console.log('API endpoint:', API_URL);
+        console.log('Hum to MIDI ready - API:', API_URL);
     </script>
 </body>
 </html>
